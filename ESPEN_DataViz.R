@@ -14,7 +14,7 @@
 # TRIAL to use a shapefile (*.shp) files first!
 ################################################################################
 
-wd = "C:/Users/dac23/Documents/Downloads"
+wd = "C:/Users/dac23/Downloads"
 setwd(wd)
 
 # 1. Unzip file coz' file downloaded from GADM is in *.zip
@@ -23,15 +23,15 @@ setwd(wd)
 # BF_shp_out = '/home/ron/Downloads/2023 Imperial MRes Journey/2023 Project1LF Mod TRANSFIL/BF Map/gadm41_BFA_shp'
 
 # Trashy WindOS
-BF_shp_zip = 'C:/Users/dac23/Documents/Downloads/gadm41_BFA_shp.zip'
-BF_shp_out = 'C:/Users/dac23/Documents/Downloads/gadm41_BFA_shp'
+BF_shp_zip = 'C:/Users/dac23/Downloads/gadm41_BFA_shp.zip'
+BF_shp_out = 'C:/Users/dac23/Downloads/gadm41_BFA_shp'
 
 
 unzip (BF_shp_zip, exdir=BF_shp_out)
 
 # 2. Load the file, we use GADM code 4 = vvilllagess???
 # BF_shp_path_LINUX = '/home/ron/Downloads/2023 Imperial MRes Journey/2023 Project1LF Mod TRANSFIL/BF Map & Data/gadm41_BFA_shp/gadm41_BFA_3.shp'
-BF_shp_path_LINUX = 'C:/Users/dac23/Documents/Downloads/gadm41_BFA_shp/gadm41_BFA_3.shp'
+BF_shp_path_LINUX = 'C:/Users/dac23/Downloads/gadm41_BFA_shp/gadm41_BFA_3.shp'
 
 library(tidyverse)
 library(sf) # Karena tidyverse ga bisa wrangling data geospasial.
@@ -87,7 +87,7 @@ unique(BF_spdf$NAME_3) # Name 3 = 349 Departments (350 in Kyelem's)
 # https://espen.afro.who.int/espen-2021-2025-pc-forecasts-brief-technical-summary
 # Burkina Faso data for Lymphatic Filariasis, Site Level
 
-G_BF_ESPEN_Path_LINUX = "C:/Users/dac23/Documents/Downloads/data-BF-LF-sitelevel.csv"
+G_BF_ESPEN_Path_LINUX = "C:/Users/dac23/Downloads/data-BF-LF-sitelevel.csv"
 G_BF_ESPEN <- read_csv(G_BF_ESPEN_Path_LINUX, col_names = T)
 # view(G_BF_ESPEN)
 head(G_BF_ESPEN)
@@ -265,6 +265,98 @@ abline(h = 0.02, col = "red", lty = 2)
 # Add prevalence points
 points(as.factor(unique(G_BF_ESPEN_Mean_Prev$Year)), G_BF_ESPEN_Mean_Prev$Prevalence, pch = 5, col = "black", cex = 1)
 
+# TRIAL CI calculation for national prevalence
+G_BF_ESPEN_Mean_Prev <- G_BF_ESPEN_Y %>% 
+  filter(Method_1 != "Clinical",
+         Prevalence != 'null') %>%
+  mutate(Prevalence = as.numeric(Prevalence),
+         Positive = as.numeric(Positive),
+         Examined = as.numeric(Examined)) %>% 
+  filter(!is.na(Prevalence),
+         !is.na(Positive),
+         !is.na(Examined)) %>% 
+  group_by(Year) %>% 
+  summarise(Prevalence = mean(Prevalence),
+            Sum_positive = sum(Positive),
+            Sum_examined = sum(Examined)) %>% 
+  ungroup() %>%
+  view() %>% 
+  glimpse()
+
+# CI by using binom.exact can't be used because some data value have NO INFO about sample size and positive (ONLY PREVALENCE IS AVAILABLE)
+# CI_trial <- binom.exact(G_BF_ESPEN_Mean_Prev$Sum_positive, G_BF_ESPEN_Mean_Prev$Sum_examined, conf.level = 0.95)
+# G_BF_ESPEN_comb <- left_join(G_BF_ESPEN_Mean_Prev, CI_trial,
+                             # by = c("Sum_positive" = "x", "Sum_examined" = "n")) %>% 
+  # view()
+
+# Alternative CI by using Ste instead
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # By using ggplot
 G_BF_ESPEN_Y$Prevalence <- as.numeric(G_BF_ESPEN_Y$Prevalence)
 ggplot(G_BF_ESPEN, aes(x = as.factor(Year), y = Prevalence,))+ #fill = ADMIN1_NAME)) +
@@ -400,7 +492,7 @@ ggplot(G_BF_ESPEN_2017_Decision_Percent, aes(x = Year, y = Decision_Percent, fil
 ################################################################################
 # I think we can't work with sitelevel data, load IU data instead: #############
 ################################################################################
-G_BF_IU_Path = "C:/Users/dac23/Documents/Downloads/data-BF-LF-iu.csv"
+G_BF_IU_Path = "C:/Users/dac23/Downloads/data-BF-LF-iu.csv"
 G_BF_IU <- read_csv(G_BF_IU_Path, col_names = T)
 # view(G_BF_ESPEN)
 glimpse(G_BF_IU)
