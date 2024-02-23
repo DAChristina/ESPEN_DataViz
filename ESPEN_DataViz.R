@@ -228,7 +228,9 @@ view(G_BF_ESPEN)
 
 # ACTIVATE THIS FILTER IF FOCUSED ON >= 2015
 G_BF_ESPEN_Y <- G_BF_ESPEN %>% 
-  filter(Year >= 2015)
+  filter(Year >= 2015) %>% 
+  mutate(Prevalence = as.numeric(Prevalence)) %>% 
+  mutate(Prevalence = Prevalence*100) # Prevalence in per cent
 
 G_BF_ESPEN_Mean_Prev <- G_BF_ESPEN_Y %>% 
   filter(Prevalence != 'null') %>%
@@ -258,10 +260,10 @@ G_BF_ESPEN_Mean_Prev$Prevalence[G_BF_ESPEN_Mean_Prev$Prevalence == 0] <- NA # Ha
 
 
 boxplot(Prevalence ~ Year, data = G_BF_ESPEN_Y, 
-        xlab = "Year", ylab = "Prevalence",
+        xlab = "Year", ylab = "Prevalence (%)",
         main = "The National Prevalence of Lymphatic Filariasis in Burkina Faso from 2015 to 2023", col = "lightblue")
-abline(h = 0.01, col = "red", lty = 2)
-abline(h = 0.02, col = "red", lty = 2)
+abline(h = 1, col = "red", lty = 2)
+abline(h = 2, col = "red", lty = 2)
 # Add prevalence points
 points(as.factor(unique(G_BF_ESPEN_Mean_Prev$Year)), G_BF_ESPEN_Mean_Prev$Prevalence, pch = 5, col = "black", cex = 1)
 
@@ -276,7 +278,7 @@ G_BF_ESPEN_Mean_Prev <- G_BF_ESPEN_Y %>%
          !is.na(Positive),
          !is.na(Examined)) %>% 
   group_by(Year) %>% 
-  summarise(Prevalence = mean(Prevalence),
+  summarise(Prevalence = mean(Prevalence)/100, # Because the data above use prevalence in (%)
             Sum_positive = sum(Positive),
             Sum_examined = sum(Examined)) %>% 
   ungroup() %>%
@@ -284,91 +286,72 @@ G_BF_ESPEN_Mean_Prev <- G_BF_ESPEN_Y %>%
   glimpse()
 
 # CI by using binom.exact can't be used because some data value have NO INFO about sample size and positive (ONLY PREVALENCE IS AVAILABLE)
-# CI_trial <- binom.exact(G_BF_ESPEN_Mean_Prev$Sum_positive, G_BF_ESPEN_Mean_Prev$Sum_examined, conf.level = 0.95)
-# G_BF_ESPEN_comb <- left_join(G_BF_ESPEN_Mean_Prev, CI_trial,
-                             # by = c("Sum_positive" = "x", "Sum_examined" = "n")) %>% 
-  # view()
-
-# Alternative CI by using Ste instead
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# By using ggplot
-G_BF_ESPEN_Y$Prevalence <- as.numeric(G_BF_ESPEN_Y$Prevalence)
-ggplot(G_BF_ESPEN, aes(x = as.factor(Year), y = Prevalence,))+ #fill = ADMIN1_NAME)) +
-  geom_boxplot() +
-  theme_minimal() +
-  theme(panel.background = element_rect(fill = NA)) +
-  xlab("Year") +
-  ylab("Prevalence") +
-  labs(fill = "ADMIN1_NAME") +
-  ggtitle("Boxplot of Prevalence by Year and ADMIN1_NAME") +
-  stat_summary(fun.y=mean, colour="darkred", geom="point", hape=18, size=3,show_guide = FALSE)
-
+library(epitools)
+CI_trial <- binom.exact(G_BF_ESPEN_Mean_Prev$Sum_positive, G_BF_ESPEN_Mean_Prev$Sum_examined, conf.level = 0.95)
+G_BF_ESPEN_comb <- left_join(G_BF_ESPEN_Mean_Prev, CI_trial,
+                             by = c("Sum_positive" = "x", "Sum_examined" = "n")) %>%
+  rename(ESPEN_Prev = Prevalence,       # Prevalence from ESPEN, but with NO data for positives and total samples
+         Calc_Prev = proportion) %>%    # Calc Prevalence from ESPEN with available positives and total samples
+  # view() %>% 
+  glimpse()
+
+# Trying to compare the data by using t student's:
+Prev_t_compare <- t.test(G_BF_ESPEN_comb$ESPEN_Prev, G_BF_ESPEN_comb$Calc_Prev)
+Prev_t_compare
+
+# How many nulls?
+HowMany_Nulls <- G_BF_ESPEN_Y %>% 
+  select(Method_1, Examined, Year) %>% 
+  filter(Method_1 != "Clinical",
+         Examined == "null") %>% 
+  group_by(Year) %>% 
+  count() %>% 
+  ungroup() %>% 
+  view()
+
+
+# How many IUs screened from 2015-2023?
+HowMany_IUs_Sero <- G_BF_ESPEN_Y %>% 
+  select(Method_1, Method_2, Examined, Year, ADMIN1_NAME, ADMIN2_NAME, IU_NAME, Prevalence) %>% 
+  filter(Method_1 != "Clinical",
+         !is.na(Prevalence)) %>% 
+  group_by(Year, ADMIN1_NAME, ADMIN2_NAME, Method_1, Method_2) %>% # ADMIN2_NAME = IU_NAME
+  summarise(mean_Prev = mean(Prevalence)) %>% # count() %>% 
+  ungroup() %>% 
+  mutate(
+    ADMIN1_NAME = case_when(
+      ADMIN1_NAME == 'Centre-Est' ~ 'Center-East',
+      ADMIN1_NAME == 'Haut-Bassins' ~ 'Upper Basins',
+      ADMIN1_NAME == 'Nord' ~ 'North',
+      ADMIN1_NAME == 'Centre-Nord' ~ 'Center-North',
+      ADMIN1_NAME == 'Centre' ~ 'Center',
+      ADMIN1_NAME == 'Boucle du Mouhoun' ~ 'Mouhoun Loop',
+      ADMIN1_NAME == 'Est' ~ 'East',
+      ADMIN1_NAME == 'Centre-Sud' ~ 'Center-South',
+      ADMIN1_NAME == 'Cascades' ~ 'Cascades',
+      ADMIN1_NAME == 'Sud-Ouest' ~ 'South-West',
+      ADMIN1_NAME == 'Centre-Ouest' ~ 'Center-West',
+      ADMIN1_NAME == 'Plateau-Central' ~ 'Central Plateau',
+      ADMIN1_NAME == 'Sahel' ~ 'Sahel',
+      TRUE ~ ADMIN1_NAME
+    )) %>% 
+  view()
+
+# How about a plot? -_-)
+# plot(HowMany_IUs_Sero$Year, HowMany_IUs_Sero$n)
+
+# Since when they stop using Parasitological (thick blood smear)?
+Smear_Stop <- G_BF_ESPEN_Y %>% 
+  select(Method_1, Examined, Year, ADMIN1_NAME, ADMIN2_NAME, IU_NAME, Prevalence) %>% 
+  filter(Method_1 == "Parasitological",
+         !is.na(Prevalence)) %>% 
+  group_by(Year) %>% 
+  count() %>% 
+  ungroup() %>% 
+  view() %>% 
+  glimpse()
+
+# They're still using blood smear in some survey even in 2023
 
 # REGIONAL PREVALENCE ##########################################################
 # What I wanna do is create a new df, grouped the data by year AND regional & make a summary
@@ -656,103 +639,201 @@ G_BF_ESPEN_Year_boxplot
 
 # Nevermind.ggplot is kinda annoying.
 
-
-################################################################################
-sort(unique(G_BF_ESPEN$Year))
-
-Region_max <- G_BF_ESPEN %>% 
-  select(Source,ADMIN1_NAME,Year,Prevalence) %>% 
-  filter(Year >= 2010 & Prevalence!= 'null') %>% 
-  mutate(Prevalence = as.numeric(Prevalence)) %>% 
-  filter(Prevalence>=0.01) %>% #Focused on prevalence >=0.01 (1% WHO cutoff)
-  # sort(Prevalence, decreasing = T) %>% 
-  arrange(desc(Prevalence)) %>% 
-  view()
-
-unique(Region_max$ADMIN1_NAME)
-
-# The GPELF program works well but there was an escalating prevalence at 2010
-# (peaked at 2019 & 2020) --> COVID-19 pandemic?
-
-# How about we're trying to use gganimate?
-# TRIAL1########################################################################
-# We should aggregate the data first:
-filtered <- G_BF_ESPEN %>%
-  select(ADMIN1_NAME, Year, Prevalence) %>%
-  filter(Year >= 2010 & Prevalence != 'null') %>%
-  mutate(Prevalence = as.numeric(Prevalence))
-  # filter(Prevalence >= 0.01)  # Focused on prevalence >= 0.01 (1% WHO cutoff)
-
-# Aggregate the data
-aggregated_data_max <- filtered %>%
-  group_by(ADMIN1_NAME, Year) %>%
-  summarise(Prevalence = max(Prevalence)) %>%
-  ungroup() %>%
-  arrange(ADMIN1_NAME, Year) %>%
-  group_by(ADMIN1_NAME) %>%
-  mutate(Prevalence = ifelse(Prevalence == 0, lag(Prevalence), Prevalence)) %>%
-  ungroup()
-
-# Plot and create animation
-year_anime <- ggplot(data = aggregated_data_max,
-                     aes(x = ADMIN1_NAME, y = Prevalence, fill = ADMIN1_NAME)) +
-  geom_col(position = 'dodge') + 
-  geom_hline(yintercept = 0.01, color = "red", linetype = "dashed") + #(WHO 1% cutoff)
-  # scale_linetype_manual(name = "Legend", values = "dashed", labels = "WHO Cutoff") +
-  # scale_color_manual(name = "Legend", values = "red", labels = "WHO Cutoff") + 
-  # theme(plot.width = 6, plot.height = 4) + # in inch, but I always failed to set the graph's width
-  labs(title = 'Year: {closest_state}', x = 'ADMIN1_NAME', y = 'Maximum Prevalence') +
-  transition_states(states = as.factor(Year), 
-                    transition_length = 0.5, 
-                    state_length = 1) +
-  ease_aes('linear') +
-  shadow_mark()
-
-animate(year_anime, renderer = gifski_renderer())
-
-
-# Focused on region names with prevalence >= 0.01, focused on 2010 & beyond#####
-# So, I wanna focused on regions with Prev >= 0.01, filtered to:
-# 1. ADMIN2_NAME
-# 2. IU_NAME --> Seems like the name of provinces mixed with departments & communities
-
-filtered_WHO_Cutoff <- G_BF_ESPEN %>%
-  filter(Year >= 2010 & Prevalence != 'null') %>%
-  mutate(Prevalence = as.numeric(Prevalence)) %>% 
-  filter(Prevalence >= 0.01) # Focused on prevalence >= 0.01 (1% WHO cutoff)
-
-unique(filtered_WHO_Cutoff$ADMIN1_NAME)
-# [1] "Boucle du Mouhoun" "Centre-Est"        "Sud-Ouest"         "Centre"            "Est"               "Centre-Sud"       
-# [7] "Sahel" 
-
-# 2.2. Regions with high prevalence in the last x years (start form 2010 or 2015)
-G_BF_ESPEN_Admin2 <- G_BF_ESPEN %>% 
-  select(Source,ADMIN1_NAME,ADMIN2_NAME,Year,Prevalence) %>% 
-  filter(Year >= 2018 & Prevalence!= 'null') %>% # Year >=2018 (5 years before 2023) coz' its more realistic
-  # filter(ADMIN1_NAME ==c("Sud-Ouest","Centre-Est","Centre","Est")) %>% # 4% cutoff Regions
-  # filter(ADMIN2_NAME !="null") %>% 
-  mutate(Prevalence = as.numeric(Prevalence)) %>% 
-  filter(Prevalence>=0.01) %>% #Focused on prevalence >=0.01
+# FOCUSED ON SOUTH-WEST REGION (SUD-OUEST) #####################################
+# What I wanna do is isolate the data from 2015-2023 in South-West, create a map
+# How many IUs screened from 2015-2023?
+South_west_plot <- G_BF_ESPEN_Y %>% 
+  select(Method_1, Method_2, Examined, Year, ADMIN1_NAME, ADMIN2_NAME, IU_NAME, Latitude, Longitude, Prevalence) %>% 
+  filter(Method_1 != "Clinical",
+         !is.na(Prevalence),
+         ADMIN1_NAME == "Sud-Ouest") %>% 
+  mutate(
+    ADMIN1_NAME = case_when(
+      ADMIN1_NAME == 'Sud-Ouest' ~ 'South-West',
+      TRUE ~ ADMIN1_NAME
+    )) %>% 
+  mutate(Prevalence = as.numeric(Prevalence),
+         Latitude = as.numeric(Latitude),
+         Longitude = as.numeric(Longitude)) %>% 
+  group_by(Year, ADMIN1_NAME, ADMIN2_NAME) %>% 
+  summarise(Prevalence = mean(Prevalence),
+            Latitude = mean(Latitude),
+            Longitude = mean(Longitude)) %>% 
+  ungroup() %>% 
   # view() %>% 
   glimpse()
 
-G_BF_ESPEN_Admin2_plot <- ggplot(data = G_BF_ESPEN_Admin2,
-                                     aes(x = ADMIN2_NAME, y = Prevalence, fill = ADMIN2_NAME))+
-  geom_col(position = 'dodge')+
-  facet_wrap(~ADMIN1_NAME, ncol = 2, scales = 'free')
-G_BF_ESPEN_Admin2_plot
+# Plot
+ggplot(South_west_plot, aes(x = Year, y = Prevalence)) +
+  geom_col(fill = "lightblue", color = "black") + # Add black outline to bars
+  facet_wrap(~ADMIN2_NAME, scales = "free_y") +
+  labs(x = "Year", y = "Prevalence (%)", fill = "") +
+  scale_fill_manual(values = "lightblue") +
+  ggtitle("The Prevalence of LF in South-West Region (2015-2021)") +
+  theme_minimal() +  # Use theme_minimal for white background
+  theme(panel.border = element_rect(color = "black", fill = NA, size = 1),  # Black border around panels
+        plot.background = element_rect(fill = "white")) +  # White background
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = 2, linetype = "dashed", color = "red") +
+  guides(fill = FALSE)  # Remove legend
 
-# Idk what is happening here.
-# On the previous plot it seems like in Tenkodogo (Centre-Est),
-# there are 4 data points with 0.9 to 0.125 prevalence (Year 2018-2020),
-# But they're somewhat missing in 'G_BF_ESPEN_Admin2'
+################################################################################
+# Now, isolate the geospatial information
+# I feel like a dum-dum.
+# Why the lat-long is not summarised above is because there is "null" in lat-long with available prevalence.
+# Filtering will cause data loss.
 
-library(patchwork)
-# G_BF_ESPEN_Year_plot + G_BF_ESPEN_Admin2_plot
-combined <- G_BF_ESPEN_Year_plot + G_BF_ESPEN_Admin2_plot & theme(legend.position = "right")
-combined + plot_layout(guides = "collect")
+# Update: I tried by using mean(Latitude) and mean(Longitude) and the points were not on the place they should be.
+# use max(Prevalence) instead:
+# Maximum Prevalence for each ADMIN2_NAME
+South_west_maxPrev <- G_BF_ESPEN_Y %>% 
+  select(Method_1, Method_2, Examined, Year, ADMIN1_NAME, ADMIN2_NAME, IU_NAME, Latitude, Longitude, Prevalence) %>% 
+  filter(Method_1 != "Clinical",
+         !is.na(Prevalence),
+         ADMIN1_NAME == "Sud-Ouest") %>% 
+  mutate(
+    ADMIN1_NAME = case_when(
+      ADMIN1_NAME == 'Sud-Ouest' ~ 'South-West',
+      TRUE ~ ADMIN1_NAME
+    )) %>% 
+  group_by(ADMIN2_NAME) %>%
+  filter(!is.na(Latitude),
+         Prevalence == max(Prevalence, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  view() %>%
+  glimpse()
 
-# 3. Data preparation for GADM map
+# Extract Latitude and Longitude for these rows
+South_west_GPS_temp <- South_west_maxPrev %>%
+  select(ADMIN2_NAME, Latitude, Longitude) %>% 
+  filter(Latitude != "null") %>% 
+  mutate(Latitude = as.numeric(Latitude),
+         Longitude = as.numeric(Longitude)) %>% 
+  view() %>%
+  glimpse()
+
+# Dano's data is missing -_-), though prev = 4% they don't have LatLon data
+# Dano	11.022705	-3.033361
+Add_Dano <- data.frame(
+  ADMIN2_NAME = c("Dano"),
+  Latitude = c(11.022705),
+  Longitude = c(-3.033361)
+)
+
+# Combined!
+South_west_GPS <- rbind(South_west_GPS_temp, Add_Dano) %>% 
+  view() %>% 
+  glimpse()
+
+# A function required coz' Sawadogo's paper use degr-mins-secs (DMS) -_-)
+dt_dec <- function(degr, mins, secs, hems) {
+  decimal_degr <- degr + mins / 60 + secs / 3600
+  if (toupper(hems) == "W" | toupper(hems) == "S") {
+    decimal_degr <- -decimal_degr
+  }
+  return(decimal_degr)
+}
+
+# Bapla (10°53'25.83"N;3°15'46.74"W)
+lat_bapla <- dt_dec(10, 53, 25.83, "N")
+lon_bapla <- dt_dec(3, 15, 46.74, "W")
+
+# Ouessa (11°02'19.59"N;2°47'7.57"W)
+lat_ouessa <- dt_dec(11, 2, 19.59, "N")
+lon_ouessa <- dt_dec(2, 47, 7.57, "W")
+
+# Koudjo (9°53'50.41"N; 2°58'43.43"W)
+lat_koudjo <- dt_dec(9, 53, 50.41, "N")
+lon_koudjo <- dt_dec(2, 58, 43.43, "W")
+
+# New mosquito GPS df
+Mosquitoes_GPS <- data.frame(
+  ADMIN2_NAME = c("Bapla", "Ouessa", "Koudjo"),
+  Latitude = c(lat_bapla, lat_ouessa, lat_koudjo),
+  Longitude = c(lon_bapla, lon_ouessa, lon_koudjo)
+)
+
+# Combined!
+South_west_GPS_ALL <- rbind(South_west_GPS, Mosquitoes_GPS) %>% 
+  view() %>% 
+  glimpse()
+
+# From LatLon to distance
+haversine_distance <- function(lat1, lon1, lat2, lon2) {
+  # Convert to radians
+  lat1 <- lat1 * pi / 180
+  lon1 <- lon1 * pi / 180
+  lat2 <- lat2 * pi / 180
+  lon2 <- lon2 * pi / 180
+  
+  # Earth radius (km)
+  R <- 6371
+  
+  # Diffs
+  dlat <- lat2 - lat1
+  dlon <- lon2 - lon1
+  
+  # Calculate distance
+  a <- sin(dlat / 2)^2 + cos(lat1) * cos(lat2) * sin(dlon / 2)^2
+  c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+  distance <- R * c
+  
+  return(distance)
+}
+
+# Calculate distances between each pair of locations
+distances <- expand.grid(ADMIN2_NAME1 = South_west_GPS_ALL$ADMIN2_NAME, 
+                         ADMIN2_NAME2 = South_west_GPS_ALL$ADMIN2_NAME) %>%
+  mutate(distance = haversine_distance(South_west_GPS_ALL$Latitude[match(ADMIN2_NAME1, South_west_GPS_ALL$ADMIN2_NAME)], 
+                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME1, South_west_GPS_ALL$ADMIN2_NAME)], 
+                                       South_west_GPS_ALL$Latitude[match(ADMIN2_NAME2, South_west_GPS_ALL$ADMIN2_NAME)], 
+                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME2, South_west_GPS_ALL$ADMIN2_NAME)]))
+distances
+
+
+################################################################################
+# INTERACTIVE MAP FOR PREVALENCE IN MOSQUITOES AND HUMAN
+################################################################################
+# By directly using leaflet coz now I have the data point???
+# 3.1. for hovered label!
+# spdf data to separate Burkina Faso data by regions:
+BF_spdf_sf <- st_as_sf(BF_spdf, coords = c("longitude", "latitude"), crs = '4326')
+# view(BF_spdf_sf)
+glimpse(BF_spdf_sf)
+
+library(leaflet)
+
+# Create a leaflet map
+map <- leaflet(BF_spdf_sf) %>%
+  # Add tiles
+  addTiles() %>% 
+  setView( lat=12.3710, lng=-1.5197, zoom=7) %>%
+  addPolygons( stroke = F,
+               fillOpacity = 0.3,
+               fillColor = "white") %>% 
+  # Add markers for each point
+  addCircleMarkers(
+    ~South_west_GPS_ALL$Longitude, ~South_west_GPS_ALL$Latitude,
+    label = ~South_west_GPS_ALL$ADMIN2_NAME,
+    labelOptions = labelOptions(
+      noHide = TRUE,  # Keep labels always visible
+      direction = "bottom",
+      textOnlyIfOverlapping = TRUE
+    ),
+    popup = ~paste("Latitude:", round(South_west_GPS_ALL$Latitude, 6), "<br>",
+                   "Longitude:", round(South_west_GPS_ALL$Longitude, 6))
+  ) %>% 
+  # Add a tile layer for the world with white color
+  addProviderTiles("CartoDB.Positron", options = providerTileOptions(opacity = 1, maxZoom = 18)) %>% 
+  # Add a geojson layer for the world with white fill color
+  addGeoJSON("https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json",
+             fillColor = "white", fillOpacity = 1, color = "white", weight = 1)
+
+# Display the map
+map
+
+################################################################################
+# 3. Data preparation for GADM map #############################################
 glimpse(G_BF_ESPEN)
 unique(G_BF_ESPEN$ADMIN2_NAME)
 # Maybe data that I want to analyse:
