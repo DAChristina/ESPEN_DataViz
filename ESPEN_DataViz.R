@@ -684,45 +684,32 @@ ggplot(South_west_plot, aes(x = Year, y = Prevalence)) +
 # Filtering will cause data loss.
 
 # Update: I tried by using mean(Latitude) and mean(Longitude) and the points were not on the place they should be.
-# use max(Prevalence) instead:
+# SHOW all Prevalence instead:
 # Maximum Prevalence for each ADMIN2_NAME
-South_west_maxPrev <- G_BF_ESPEN_Y %>% 
-  select(Method_1, Method_2, Examined, Year, ADMIN1_NAME, ADMIN2_NAME, IU_NAME, Latitude, Longitude, Prevalence) %>% 
+South_west_GPS <- G_BF_ESPEN_Y %>% 
+  select(Method_1, Method_2, Examined, Year, ADMIN1_NAME, ADMIN2_NAME, IU_NAME, LocationName, Latitude, Longitude, Prevalence) %>% 
   filter(Method_1 != "Clinical",
          !is.na(Prevalence),
          ADMIN1_NAME == "Sud-Ouest") %>% 
   mutate(
     ADMIN1_NAME = case_when(
       ADMIN1_NAME == 'Sud-Ouest' ~ 'South-West',
-      TRUE ~ ADMIN1_NAME
-    )) %>% 
-  group_by(ADMIN2_NAME) %>%
+      TRUE ~ ADMIN1_NAME),
+      Prevalence = Prevalence/100, # G_BF_ESPEN calculated prev in % (line 233); change it to proportion & combine the data below
+    ) %>% 
+  # group_by(ADMIN2_NAME) %>%
   filter(!is.na(Latitude),
-         Prevalence == max(Prevalence, na.rm = TRUE)) %>%
-  ungroup() %>% 
-  view() %>%
-  glimpse()
-
-# Extract Latitude and Longitude for these rows
-South_west_GPS_temp <- South_west_maxPrev %>%
-  select(ADMIN2_NAME, Latitude, Longitude) %>% 
-  filter(Latitude != "null") %>% 
-  mutate(Latitude = as.numeric(Latitude),
+         Latitude != "null",
+         Latitude <= 13, # I saw some inconsistencies with small prevalence (distance too far away)
+         Longitude > -0.7 # GPS inconsistencies (distance too far from South-west region)
+  #        Prevalence == max(Prevalence, na.rm = TRUE)
+  ) %>%
+  mutate(Prevalence = as.numeric(Prevalence),
+         Latitude = as.numeric(Latitude),
          Longitude = as.numeric(Longitude)) %>% 
+  # ungroup() %>% 
+  select(Year, ADMIN2_NAME, LocationName, Latitude, Longitude, Prevalence) %>% # Select THIS
   view() %>%
-  glimpse()
-
-# Dano's data is missing -_-), though prev = 4% they don't have LatLon data
-# Dano	11.022705	-3.033361
-Add_Dano <- data.frame(
-  ADMIN2_NAME = c("Dano"),
-  Latitude = c(11.022705),
-  Longitude = c(-3.033361)
-)
-
-# Combined!
-South_west_GPS <- rbind(South_west_GPS_temp, Add_Dano) %>% 
-  view() %>% 
   glimpse()
 
 # A function required coz' Sawadogo's paper use degr-mins-secs (DMS) -_-)
@@ -748,23 +735,27 @@ lon_koudjo <- dt_dec(2, 58, 43.43, "W")
 
 # New mosquito GPS df
 Mosquitoes_GPS <- data.frame(
+  Year = c(2016, 2016, 2016),
   ADMIN2_NAME = c("Bapla", "Ouessa", "Koudjo"),
+  LocationName = c("Bapla", "Ouessa", "Koudjo"),
   Latitude = c(lat_bapla, lat_ouessa, lat_koudjo),
-  Longitude = c(lon_bapla, lon_ouessa, lon_koudjo)
+  Longitude = c(lon_bapla, lon_ouessa, lon_koudjo),
+  Prevalence = c(0.003367, 0.033898, NaN)
 )
 
 # Combined!
 South_west_GPS_ALL <- rbind(South_west_GPS, Mosquitoes_GPS) %>% 
+  mutate(Prev_label = paste(round(Prevalence*100, 3), "%")) %>% 
   view() %>% 
   glimpse()
 
 # From LatLon to distance
 haversine_distance <- function(lat1, lon1, lat2, lon2) {
   # Convert to radians
-  lat1 <- lat1 * pi / 180
-  lon1 <- lon1 * pi / 180
-  lat2 <- lat2 * pi / 180
-  lon2 <- lon2 * pi / 180
+  lat1 <- lat1*pi/180
+  lon1 <- lon1*pi/180
+  lat2 <- lat2*pi/180
+  lon2 <- lon2*pi/180
   
   # Earth radius (km)
   R <- 6371
@@ -781,14 +772,21 @@ haversine_distance <- function(lat1, lon1, lat2, lon2) {
   return(distance)
 }
 
-# Calculate distances between each pair of locations
-distances <- expand.grid(ADMIN2_NAME1 = South_west_GPS_ALL$ADMIN2_NAME, 
-                         ADMIN2_NAME2 = South_west_GPS_ALL$ADMIN2_NAME) %>%
-  mutate(distance = haversine_distance(South_west_GPS_ALL$Latitude[match(ADMIN2_NAME1, South_west_GPS_ALL$ADMIN2_NAME)], 
-                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME1, South_west_GPS_ALL$ADMIN2_NAME)], 
-                                       South_west_GPS_ALL$Latitude[match(ADMIN2_NAME2, South_west_GPS_ALL$ADMIN2_NAME)], 
-                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME2, South_west_GPS_ALL$ADMIN2_NAME)]))
-distances
+# Calculate distances between each pair of locations (use LocationName instead of ADMIN2_NAME)
+distances <- expand.grid(ADMIN2_NAME1 = South_west_GPS_ALL$LocationName,
+                         ADMIN2_NAME2 = South_west_GPS_ALL$LocationName) %>%
+  mutate(distance = haversine_distance(South_west_GPS_ALL$Latitude[match(ADMIN2_NAME1, South_west_GPS_ALL$LocationName)], 
+                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME1, South_west_GPS_ALL$LocationName)], 
+                                       South_west_GPS_ALL$Latitude[match(ADMIN2_NAME2, South_west_GPS_ALL$LocationName)], 
+                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME2, South_west_GPS_ALL$LocationName)]))
+distances_df <- data.frame(
+  LocationName1 = distances$ADMIN2_NAME1,
+  LocationName2 = distances$ADMIN2_NAME2,
+  distance_km = distances$distance) %>% 
+  filter(distance_km != 0) %>% 
+  view() %>% 
+  glimpse()
+
 
 
 ################################################################################
@@ -803,6 +801,17 @@ glimpse(BF_spdf_sf)
 
 library(leaflet)
 
+# Add colours to mosquitoes as red
+color <- ifelse(South_west_GPS_ALL$LocationName %in% c("Bapla", "Ouessa", "Koudjo"), "red", "blue")
+
+# Labeling the flags
+Labell <- paste(
+  'Region: ', South_west_GPS_ALL$ADMIN2_NAME, '(', South_west_GPS_ALL$LocationName, ')','<br/>',
+  'Year: ', South_west_GPS_ALL$Year, '<br/>',
+  'Prev: ', South_west_GPS_ALL$Prev_label, '<br/>', 
+  sep="") %>%
+  lapply(htmltools::HTML)
+
 # Create a leaflet map
 map <- leaflet(BF_spdf_sf) %>%
   # Add tiles
@@ -814,12 +823,13 @@ map <- leaflet(BF_spdf_sf) %>%
   # Add markers for each point
   addCircleMarkers(
     ~South_west_GPS_ALL$Longitude, ~South_west_GPS_ALL$Latitude,
-    label = ~South_west_GPS_ALL$ADMIN2_NAME,
+    label = Labell,
     labelOptions = labelOptions(
       noHide = TRUE,  # Keep labels always visible
       direction = "bottom",
       textOnlyIfOverlapping = TRUE
     ),
+    color = color,
     popup = ~paste("Latitude:", round(South_west_GPS_ALL$Latitude, 6), "<br>",
                    "Longitude:", round(South_west_GPS_ALL$Longitude, 6))
   ) %>% 
