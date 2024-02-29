@@ -229,8 +229,32 @@ view(G_BF_ESPEN)
 # ACTIVATE THIS FILTER IF FOCUSED ON >= 2015
 G_BF_ESPEN_Y <- G_BF_ESPEN %>% 
   filter(Year >= 2015) %>% 
-  mutate(Prevalence = as.numeric(Prevalence)) %>% 
+  mutate(Prevalence = as.numeric(Prevalence),
+         Examined = as.numeric(Examined),
+         Positive = as.numeric(Positive),
+         Calc_Prevalence = Positive/Examined*100) %>% 
   mutate(Prevalence = Prevalence*100) # Prevalence in per cent
+
+# t-test LOOP for each year
+res_df <- data.frame() # R: have to create an empty storage!
+for (i in unique(G_BF_ESPEN_Y$Year)) {
+  dat <- subset(G_BF_ESPEN_Y, Year == i)
+  res <- t.test(dat$Prevalence, dat$Calc_Prevalence)
+  
+  comp_res <- data.frame(
+    Year = i,
+    t_statistic = res$statistic,
+    df = res$parameter,
+    p_value = res$p.value,
+    lower_CI = res$conf.int[1],
+    upper_CI = res$conf.int[2],
+    mean_Prev = res$estimate[1],
+    mean_Prev = res$estimate[2]
+  )
+  res_df <- rbind(res_df,comp_res)
+}
+
+view(res_df)
 
 G_BF_ESPEN_Mean_Prev <- G_BF_ESPEN_Y %>% 
   filter(Prevalence != 'null') %>%
