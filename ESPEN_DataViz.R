@@ -226,6 +226,39 @@ view(G_BF_ESPEN)
 # QUICK NOTES:
 # I tried to add & RENEW year data, but it's not working, right...
 
+# Recall G_BF_ESPEN_Y UPDATE CONFIDENCE INTERVAL ###############################
+library(epitools)
+G_BF_ESPEN_Y <- G_BF_ESPEN %>% 
+  filter(Year >= 2015,
+         Positive != "null",
+         Examined != "null") %>% 
+  mutate(Prevalence = as.numeric(Prevalence),
+         Examined = as.numeric(Examined),
+         Positive = as.numeric(Positive),
+         Calc_Prevalence = Positive/Examined,
+         Conf_Int = binom.exact(Positive, Examined)) %>% 
+  mutate(Prevalence = Prevalence) %>%  # Prevalence in per cent
+  mutate(lo_CI = Conf_Int$lower,
+         up_CI = Conf_Int$upper) # Show confint data
+
+# See isoolated result:
+G_BF_ESPEN_Y_isod <- G_BF_ESPEN_Y %>% 
+  select(Year, ADMIN1_NAME, ADMIN2_NAME, LocationName, Latitude, Longitude, Positive, Examined, Prevalence, Calc_Prevalence, lo_CI, up_CI) %>% 
+  filter(ADMIN1_NAME == "Sud-Ouest") %>% # Focused on South-west
+  view() %>% 
+  glimpse()
+
+ggplot(G_BF_ESPEN_Y_isod, aes(x = Year, y = Calc_Prevalence, ymin = lo_CI, ymax = up_CI)) +
+  geom_point(shape=21, fill="lightblue", color="black", size=3) +
+  geom_hline(yintercept=.01, linetype="dashed", color = "red") + # WHO proposed 1%
+  geom_hline(yintercept=.02, linetype="dashed", color = "red") + # WHO proposed 2%
+  facet_wrap(~ ADMIN2_NAME) +
+  labs(x = "Year", y = "Prevalence (in proportion)", title = "The prevalence of mf in South-west Region (2015-2021)") +
+  geom_segment(aes(x = Year, xend = Year, y = lo_CI, yend = up_CI), color = "darkred") +
+  theme_minimal() +
+  theme(panel.border = element_rect(color = "black", fill = NA))
+
+# The old one:
 # ACTIVATE THIS FILTER IF FOCUSED ON >= 2015
 G_BF_ESPEN_Y <- G_BF_ESPEN %>% 
   filter(Year >= 2015) %>% 
@@ -234,6 +267,8 @@ G_BF_ESPEN_Y <- G_BF_ESPEN %>%
          Positive = as.numeric(Positive),
          Calc_Prevalence = Positive/Examined*100) %>% 
   mutate(Prevalence = Prevalence*100) # Prevalence in per cent
+
+
 
 # t-test LOOP for each year
 res_df <- data.frame() # R: have to create an empty storage!
