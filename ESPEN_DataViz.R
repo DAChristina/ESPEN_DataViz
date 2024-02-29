@@ -793,22 +793,80 @@ lat_koudjo <- dt_dec(9, 53, 50.41, "N")
 lon_koudjo <- dt_dec(2, 58, 43.43, "W")
 
 # New mosquito GPS df
-Mosquitoes_GPS <- data.frame(
+# Recall isolated df
+# See isoolated result:
+G_BF_ESPEN_Y_isod <- G_BF_ESPEN_Y %>% 
+  select(Year, ADMIN1_NAME, ADMIN2_NAME, LocationName, Latitude, Longitude, Positive, Examined, Prevalence, Calc_Prevalence, lo_CI, up_CI) %>% 
+  filter(ADMIN1_NAME == "Sud-Ouest") %>% # Focused on South-west
+  view() %>% 
+  glimpse()
+
+# From isolated results to compiled with mosquito data, OR calculate mosquito data manually???
+Mosquitoes_GPS_all <- data.frame(
   Year = c(2016, 2016, 2016),
+  ADMIN1_NAME = c("Sud-Ouest", "Sud-Ouest", "Sud-Ouest"),
   ADMIN2_NAME = c("Bapla", "Ouessa", "Koudjo"),
   LocationName = c("Bapla", "Ouessa", "Koudjo"),
   Latitude = c(lat_bapla, lat_ouessa, lat_koudjo),
   Longitude = c(lon_bapla, lon_ouessa, lon_koudjo),
-  Prevalence = c(0.003367, 0.033898, NaN)
-)
+  Positive = c(2, 2, NaN),
+  Examined = c(594, 59, NaN),
+  Prevalence = c(0.003367, 0.033898, NaN),
+  Calc_Prevalence = c(0.003367, 0.033898, NaN)
+) %>% 
+  view() %>% 
+  glimpse()
+
+# I think we have to insert Koudjo after calculating CI -_-)
+Mosquitoes_GPS <- Mosquitoes_GPS_all %>% 
+  filter(ADMIN2_NAME != "Koudjo") %>% 
+  mutate(Conf_Int = binom.exact(Positive, Examined)) %>% 
+  mutate(lo_CI = Conf_Int$lower,
+         up_CI = Conf_Int$upper) %>% # Show confint data
+  view() %>% 
+  glimpse()
+
+Mosquitoes_isod <- Mosquitoes_GPS %>% 
+  select(Year, ADMIN1_NAME, ADMIN2_NAME, LocationName, Latitude, Longitude, Positive, Examined, Prevalence, Calc_Prevalence, lo_CI, up_CI) %>%
+  view() %>% 
+  glimpse()
 
 # Combined!
-South_west_GPS_ALL <- rbind(South_west_GPS, Mosquitoes_GPS) %>% 
+SouthWest_isod_GPS_ALL <- rbind(G_BF_ESPEN_Y_isod, Mosquitoes_isod) %>% 
   mutate(Prev_label = paste(round(Prevalence*100, 3), "%")) %>% 
   view() %>% 
   glimpse()
 
-# From LatLon to distance
+# Manually add Koudjo -_-)
+KOUDJOOO <- Mosquitoes_GPS_all %>%
+  filter(ADMIN2_NAME == "Koudjo") %>% 
+  mutate(lo_CI = NaN,
+         up_CI = NaN,
+         Prev_label = NA) %>% 
+  view()
+
+SouthWest_isod_GPS_ALL <- rbind(SouthWest_isod_GPS_ALL, KOUDJOOO) %>% 
+  view()
+
+# PLOT Mosquitoes Only!!! ######################################################
+Mosquitoes_only <- SouthWest_isod_GPS_ALL %>% 
+  filter(LocationName == "Bapla" | LocationName == "Ouessa") %>% 
+  mutate(Year = as.numeric(round(Year,0)))
+
+# Plot for only Mosquitoes with CI:
+ggplot(Mosquitoes_only, aes(x = Year, y = Calc_Prevalence,
+                            ymin = lo_CI, ymax = up_CI)) +
+  geom_point(shape=21, fill="lightblue", color="black", size=3) +
+  geom_hline(yintercept=.003, linetype="dashed", color = "red") + # 0.3% of infective An. gambiae from model (in proportion)
+  geom_hline(yintercept=.006, linetype="dashed", color = "red") + # 0.6% of positive An. gambiae from model (in proportion)
+  facet_wrap(~ LocationName) +
+  labs(x = "Year", y = "Prevalence (in proportion)", title = "The prevalence of positive mosquitoes in South-west Region") +
+  geom_segment(aes(x = Year, xend = Year, y = lo_CI, yend = up_CI), color = "darkred") +
+  theme_minimal() +
+  theme(panel.border = element_rect(color = "black", fill = NA)) +
+  scale_x_continuous(breaks = 2016)
+
+# From LatLon to distance ######################################################
 haversine_distance <- function(lat1, lon1, lat2, lon2) {
   # Convert to radians
   lat1 <- lat1*pi/180
@@ -832,12 +890,12 @@ haversine_distance <- function(lat1, lon1, lat2, lon2) {
 }
 
 # Calculate distances between each pair of locations (use LocationName instead of ADMIN2_NAME)
-distances <- expand.grid(ADMIN2_NAME1 = South_west_GPS_ALL$LocationName,
-                         ADMIN2_NAME2 = South_west_GPS_ALL$LocationName) %>%
-  mutate(distance = haversine_distance(South_west_GPS_ALL$Latitude[match(ADMIN2_NAME1, South_west_GPS_ALL$LocationName)], 
-                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME1, South_west_GPS_ALL$LocationName)], 
-                                       South_west_GPS_ALL$Latitude[match(ADMIN2_NAME2, South_west_GPS_ALL$LocationName)], 
-                                       South_west_GPS_ALL$Longitude[match(ADMIN2_NAME2, South_west_GPS_ALL$LocationName)]))
+distances <- expand.grid(ADMIN2_NAME1 = SouthWest_isod_GPS_ALL$LocationName,
+                         ADMIN2_NAME2 = SouthWest_isod_GPS_ALL$LocationName) %>%
+  mutate(distance = haversine_distance(SouthWest_isod_GPS_ALL$Latitude[match(ADMIN2_NAME1, SouthWest_isod_GPS_ALL$LocationName)], 
+                                       SouthWest_isod_GPS_ALL$Longitude[match(ADMIN2_NAME1, SouthWest_isod_GPS_ALL$LocationName)], 
+                                       SouthWest_isod_GPS_ALL$Latitude[match(ADMIN2_NAME2, SouthWest_isod_GPS_ALL$LocationName)], 
+                                       SouthWest_isod_GPS_ALL$Longitude[match(ADMIN2_NAME2, SouthWest_isod_GPS_ALL$LocationName)]))
 distances_df <- data.frame(
   LocationName1 = distances$ADMIN2_NAME1,
   LocationName2 = distances$ADMIN2_NAME2,
@@ -861,13 +919,13 @@ glimpse(BF_spdf_sf)
 library(leaflet)
 
 # Add colours to mosquitoes as red
-color <- ifelse(South_west_GPS_ALL$LocationName %in% c("Bapla", "Ouessa", "Koudjo"), "red", "blue")
+color <- ifelse(SouthWest_isod_GPS_ALL$LocationName %in% c("Bapla", "Ouessa", "Koudjo"), "red", "blue")
 
 # Labeling the flags
 Labell <- paste(
-  'Region: ', South_west_GPS_ALL$ADMIN2_NAME, '(', South_west_GPS_ALL$LocationName, ')','<br/>',
-  'Year: ', South_west_GPS_ALL$Year, '<br/>',
-  'Prev: ', South_west_GPS_ALL$Prev_label, '<br/>', 
+  'Region: ', SouthWest_isod_GPS_ALL$ADMIN2_NAME, '(', South_west_GPS_ALL$LocationName, ')','<br/>',
+  'Year: ', SouthWest_isod_GPS_ALL$Year, '<br/>',
+  'Prev: ', SouthWest_isod_GPS_ALL$Prev_label, '<br/>', 
   sep="") %>%
   lapply(htmltools::HTML)
 
@@ -889,8 +947,8 @@ map <- leaflet(BF_spdf_sf) %>%
       textOnlyIfOverlapping = TRUE
     ),
     color = color,
-    popup = ~paste("Latitude:", round(South_west_GPS_ALL$Latitude, 6), "<br>",
-                   "Longitude:", round(South_west_GPS_ALL$Longitude, 6))
+    popup = ~paste("Latitude:", round(SouthWest_isod_GPS_ALL$Latitude, 6), "<br>",
+                   "Longitude:", round(SouthWest_isod_GPS_ALL$Longitude, 6))
   ) %>% 
   # Add a tile layer for the world with white color
   addProviderTiles("CartoDB.Positron", options = providerTileOptions(opacity = 1, maxZoom = 18)) %>% 
