@@ -848,6 +848,8 @@ KOUDJOOO <- Mosquitoes_GPS_all %>%
 SouthWest_isod_GPS_ALL <- rbind(SouthWest_isod_GPS_ALL, KOUDJOOO) %>% 
   view()
 
+write.csv(SouthWest_isod_GPS_ALL, "Compiled_ESPEN_Mosquitoes_ALL.csv")
+
 # PLOT Mosquitoes Only!!! ######################################################
 Mosquitoes_only <- SouthWest_isod_GPS_ALL %>% 
   filter(LocationName == "Bapla" | LocationName == "Ouessa") %>% 
