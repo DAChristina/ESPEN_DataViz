@@ -892,9 +892,23 @@ plot(dat_human$Prev_H, dat_human$Prev_M, type = "p",
 
 # Horizontals
 segments(dat_human$Prev_H, dat_human$lo_CI_M, dat_human$Prev_H, dat_human$up_CI_M)
-
 # Verticals
 segments(dat_human$lo_CI_H, dat_human$Prev_M, dat_human$up_CI_H, dat_human$Prev_M)
+
+# U have to load the InfHuman data #############################################
+An_g <- read.csv("Output_InfHuman_Angambiae.csv")
+An_a <- read.csv("Output_InfHuman_Anarabiensis.csv")
+
+dat <- left_join(An_g, An_a, by = "InfHuman_values", relationship = "many-to-many")
+# x = An. gambiae (red)
+# y = An. arabiensis (blue)
+dat <- dat %>% 
+  filter(InfHuman_values <= .10)
+lines(dat$InfHuman_values, dat$Pos_loop.x, # An. gambiae
+      col = "red")
+text(0.00471, 0.033898, "(Dano, Ouessa)", adj = c(-0.1, -0.5), col = "black")
+text(0.061, 0.003367, "(Diebougou, Bapla)", adj = c(-0.1, -0.5), col = "black")
+legend("topright", legend = c("Vector Model"), col = c("red"), lty = 1, cex = 1)
 
 # PLOT Mosquitoes Only!!! ######################################################
 Mosquitoes_only <- SouthWest_isod_GPS_ALL %>% 
