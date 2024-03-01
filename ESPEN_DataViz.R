@@ -849,6 +849,42 @@ SouthWest_isod_GPS_ALL <- rbind(SouthWest_isod_GPS_ALL, KOUDJOOO) %>%
   view()
 
 write.csv(SouthWest_isod_GPS_ALL, "data_Compiled_ESPEN_Mosquitoes_ALL.csv")
+# CREATING xy Confidence Interval ##############################################
+dat <- read.csv("data_Compiled_ESPEN_Mosquitoes_ALL.csv")
+view(dat)
+
+dat_mosquitoes <- dat %>% 
+  select(Year, ADMIN2_NAME, LocationName, Prevalence, lo_CI, up_CI) %>% 
+  filter(ADMIN2_NAME == "Bapla" | ADMIN2_NAME == "Ouessa" | ADMIN2_NAME == "Koudjo") %>% 
+  rename(Prev_M = Prevalence,
+         lo_CI_M = lo_CI,
+         up_CI_M = up_CI) %>% 
+  view()
+
+dat_human <- dat %>% 
+  select(Year, ADMIN2_NAME, LocationName, Prevalence, lo_CI, up_CI) %>% 
+  filter(ADMIN2_NAME != "Bapla" & ADMIN2_NAME != "Ouessa" & ADMIN2_NAME != "Koudjo") %>% 
+  filter(ADMIN2_NAME == "Dano" | ADMIN2_NAME == "Diebougou") %>% # coz Bapla near Diebougou & Ouessa near Dano
+  rename(Prev_H = Prevalence,
+         lo_CI_H = lo_CI,
+         up_CI_H = up_CI) %>% 
+  mutate(
+    Nearby = case_when(
+      ADMIN2_NAME == "Dano" ~ "Ouessa",
+      ADMIN2_NAME == "Diebougou" ~ "Bapla",
+      TRUE ~ NA_character_
+    )
+  ) %>% 
+  # view() %>% 
+  glimpse()
+
+# Left join dat_human with dat_mosquitoes based on ADMIN2_NAME
+dat_human <- dat_human %>%
+  left_join(dat_mosquitoes, by = c("Nearby" = "ADMIN2_NAME")) %>%
+  view()
+
+write.csv(dat_human, "data_Compiled_ESPEN_Mosquitoes_xyConfInt.csv")
+
 
 # PLOT Mosquitoes Only!!! ######################################################
 Mosquitoes_only <- SouthWest_isod_GPS_ALL %>% 
