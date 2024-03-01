@@ -885,6 +885,16 @@ dat_human <- dat_human %>%
 
 write.csv(dat_human, "data_Compiled_ESPEN_Mosquitoes_xyConfInt.csv")
 
+# PLOT!
+plot(dat_human$Prev_H, dat_human$Prev_M, type = "p",
+     xlim = c(0, 0.1), ylim = c(0, 0.13),
+     xlab = "Proportion of mf prevalence in human", ylab = "Proportion of positive mosquitoes")
+
+# Horizontals
+segments(dat_human$Prev_H, dat_human$lo_CI_M, dat_human$Prev_H, dat_human$up_CI_M)
+
+# Verticals
+segments(dat_human$lo_CI_H, dat_human$Prev_M, dat_human$up_CI_H, dat_human$Prev_M)
 
 # PLOT Mosquitoes Only!!! ######################################################
 Mosquitoes_only <- SouthWest_isod_GPS_ALL %>% 
