@@ -885,15 +885,32 @@ dat_human <- dat_human %>%
 
 write.csv(dat_human, "data_Compiled_ESPEN_Mosquitoes_xyConfInt.csv")
 
+dat <- read.csv("data_Compiled_ESPEN_Mosquitoes_xyConfInt.csv")
+dat_human <- dat %>%
+  filter(Year.x >= 2016 & Year.x <= 2019) %>% 
+  glimpse()
+
 # PLOT!
+# col_year <- c("orange", "yellow", "lightgreen", "darkgreen", "lightblue", "steelblue", "purple") # All years
+col_year <- c("orange", "steelblue", "lightgreen", "darkgreen")
+
 plot(dat_human$Prev_H, dat_human$Prev_M, type = "p",
      xlim = c(0, 0.1), ylim = c(0, 0.13),
+     col = col_year[as.factor(dat_human$Year.x)],
+     pch = 19,
+     # alpha = 0.5,
      xlab = "Proportion of mf prevalence in human", ylab = "Proportion of positive mosquitoes")
 
-# Horizontals
-segments(dat_human$Prev_H, dat_human$lo_CI_M, dat_human$Prev_H, dat_human$up_CI_M)
-# Verticals
-segments(dat_human$lo_CI_H, dat_human$Prev_M, dat_human$up_CI_H, dat_human$Prev_M)
+# Horizontals & verticals
+segments(dat_human$Prev_H, dat_human$lo_CI_M, dat_human$Prev_H, dat_human$up_CI_M,
+         col = col_year[as.factor(dat_human$Year.x)])
+segments(dat_human$lo_CI_H, dat_human$Prev_M, dat_human$up_CI_H, dat_human$Prev_M,
+         col = col_year[as.factor(dat_human$Year.x)])
+
+legend("topright", legend = unique(as.factor(dat_human$Year.x)),
+       col = col_year[as.factor(unique(dat_human$Year.x))],
+       bty = "n", pch =19, cex = 1)
+
 
 # U have to load the InfHuman data #############################################
 An_g <- read.csv("Output_InfHuman_Angambiae.csv")
@@ -908,7 +925,9 @@ lines(dat$InfHuman_values, dat$Pos_loop.x, # An. gambiae
       col = "red")
 text(0.00471, 0.033898, "(Dano, Ouessa)", adj = c(-0.1, -0.5), col = "black")
 text(0.061, 0.003367, "(Diebougou, Bapla)", adj = c(-0.1, -0.5), col = "black")
-legend("topright", legend = c("Vector Model"), col = c("red"), lty = 1, cex = 1)
+legend("topright", legend = c("Vector Model"),
+       col = c("red"), lty = 1, cex = 1,
+       bty = "n", inset = c(-0.1, 0.3))
 
 # PLOT Mosquitoes Only!!! ######################################################
 Mosquitoes_only <- SouthWest_isod_GPS_ALL %>% 
